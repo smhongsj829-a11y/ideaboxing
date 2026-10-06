@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IDEA BOX</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💡</text></svg>">
+<style>
+:root{--bg:#000;--card:#0e0e10;--fg:#ececec;--mut:#7d7d7d;--line:#262626;--ac:#e8a3c0;--acf:#000;--chip:#1a1a1a;color-scheme:dark}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:#000}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 -apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;padding:20px 16px;max-width:680px;margin:auto}
+h1{font:900 34px/1 "Helvetica Neue",Impact,sans-serif;letter-spacing:2px;margin:6px 0 2px}
+h1 span{color:var(--ac)}
+.sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+textarea{width:100%;box-sizing:border-box;min-height:100px;padding:14px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--fg);font:inherit;resize:vertical}
+textarea:focus,input.s:focus{outline:1px solid var(--ac)}
+button{font:inherit;font-weight:800;border:0;border-radius:4px;padding:9px 18px;cursor:pointer;background:var(--ac);color:var(--acf);letter-spacing:1px}
+button.g{background:transparent;color:var(--mut);padding:2px 6px;font-weight:400}
+.bar{display:flex;justify-content:space-between;align-items:center;margin:8px 0 20px;gap:8px}
+.hint{color:var(--mut);font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chip{background:var(--chip);color:var(--fg);padding:4px 11px;border-radius:2px;font-size:13px;cursor:pointer;border:1px solid var(--line)}
+.chip.on{background:var(--ac);color:var(--acf);border-color:var(--ac);font-weight:700}
+.note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--ac);border-radius:4px;padding:12px;margin-bottom:10px}
+.note .top{display:flex;justify-content:space-between;color:var(--mut);font-size:12px}
+.note .cat{color:var(--ac);font-weight:700}
+.note .sum{font-weight:700;margin:4px 0}
+.note .txt{white-space:pre-wrap;overflow-wrap:anywhere}
+.note .tags{color:var(--mut);font-size:12px;margin-top:4px}
+input.s{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--fg);font:inherit;margin-bottom:10px}
+.ins{border:1px dashed var(--ac);border-radius:4px;padding:12px;margin-bottom:14px;background:var(--card)}.insh{display:flex;justify-content:space-between;align-items:center;color:var(--ac);font-weight:800;font-size:13px;letter-spacing:1px;margin-bottom:6px}#insb{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body>
+<h1>IDEA<span>BOX</span></h1>
+<div class="sub">생각이 많은 사람들을 위한 AI 서포터</div>
+<textarea id="t" placeholder="떠오른 아이디어, 일단 던져."></textarea>
+<div class="bar"><span class="hint" id="st"></span><button id="add">휙</button></div>
+<input class="s" id="q" placeholder="뒤적뒤적…">
+<div class="chips" id="chips"></div>
+<div class="ins" id="ins" style="display:none"><div class="insh"><span id="insl">요즘 내 생각</span><button class="g" id="insr" title="다시 읽기">↻</button></div><div id="insb"></div></div>
+<div id="list"></div>
+<script>
+const CATS=["아이디어-서비스","아이디어-마케팅","아이디어-콘텐츠","아이디어-기타","공부·학업-시험","공부·학업-과제","공부·학업-어학","공부·학업-AI","진로·워홀-워홀","진로·워홀-진로","진로·워홀-준비","할 일-오늘","할 일-이번주","할 일-나중에","일상·감정-감정","일상·감정-건강","일상·감정-관계","기타"];
+const main=c=>String(c).split("-")[0],sub=c=>String(c).split("-")[1]||"";
+const KEY="ideabox:notes",CODE="ideabox:code";
+let notes=[],cur="전체",cs="전체",ready=true;
+const $=id=>document.getElementById(id);
+const st=m=>$('st').textContent=m;
+function load(){try{notes=JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){notes=[]}notes.sort((a,b)=>b.ts-a.ts)}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(notes))}catch(e){st("저장 실패 (브라우저 저장공간)")}notes.sort((a,b)=>b.ts-a.ts);render()}
+function put(n){const i=notes.findIndex(x=>x.id===n.id);if(i>=0)notes[i]=n;else notes.push(n);save()}
+function del(id){notes=notes.filter(n=>n.id!==id);save()}
+async function ai(text,max){
+  for(let t=0;t<2;t++){
+    const r=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json","x-access-code":localStorage.getItem(CODE)||""},body:JSON.stringify({prompt:text,max})});
+    if(r.status===401){const c=window.prompt("액세스 코드를 입력하세요");if(!c)throw new Error("no code");localStorage.setItem(CODE,c);continue}
+    if(!r.ok)throw new Error("ai "+r.status);
+    return (await r.json()).text;
+  }
+  throw new Error("auth");
+}
+async function classify(n){
+  let r={cat:"미분류",summary:"",tags:[]};
+  try{
+    const out=await ai(`아래 메모를 분류하세요. JSON만 출력: {"cat":"${CATS.join(' | ')} 중 정확히 하나(대분류-소분류 형식 그대로)","summary":"15자 내외 한 줄 제목","tags":["대표 키워드 딱 1개"]}\n\n메모: ${n.text}`,200);
+    const j=JSON.parse(out.replace(/```json|```/g,"").trim());
+    r={cat:CATS.includes(j.cat)?j.cat:"기타",summary:String(j.summary||"").slice(0,40),tags:(j.tags||[]).slice(0,1).map(String)};
+  }catch(e){}
+  if(notes.some(x=>x.id===n.id))put({...n,...r});
+}
+$('add').onclick=()=>{
+  const text=$('t').value.trim();if(!text)return;
+  const n={id:"n"+Date.now(),text,cat:"분류하는 중…",summary:"",tags:[],ts:Date.now()};
+  $('t').value="";put(n);classify(n);
+};
+
+const INS={};let insSeq=0,lastKey=null;
+async function insight(force){
+  const box=$('ins'),body=$('insb');
+  const all=cur==="전체";
+  const since=Date.now()-30*864e5;
+  const list=all?notes.filter(n=>n.ts>=since):notes.filter(n=>main(n.cat)===cur&&(cs==="전체"||sub(n.cat)===cs));
+  $('insl').textContent=all?"최근 한 달 키워드":"요즘 내 생각";
+  if(list.length<2){box.style.display='none';lastKey=null;return}
+  const key=(all?'ALL':'')+cur+'|'+cs+'|'+list.map(n=>n.id).join(',');
+  box.style.display='block';
+  if(!force&&INS[key]){body.textContent=INS[key];lastKey=key;return}
+  if(!force&&key===lastKey)return;
+  lastKey=key;const my=++insSeq;body.textContent='메모들 훑어보는 중…';
+  try{
+    const label=cs==="전체"?cur:cur+"-"+cs;
+    const txt=list.slice(0,30).map(n=>"- "+n.text).join("\n");
+    const ask=all
+      ?`다음은 한 사람이 최근 한 달간 던져둔 메모들입니다. 가장 자주 나온 키워드를 2~3개만 뽑아 주세요. 형식: 키워드, 키워드, 키워드 (쉼표로 구분, 한 줄). # 기호·설명·조언은 쓰지 말고, 메모에 없는 내용은 지어내지 마세요.\n\n메모:\n${txt}`
+      :`다음은 한 사람이 "${label}" 카테고리에 던져둔 메모들입니다. 메모에 담긴 아이디어를 짧게 총정리해 주세요. 형식: 아이디어를 핵심만 한 줄씩 (최대 5줄, 각 줄 20자 안팎, 앞에 · 붙이기). 전체 150자 이내. 인사처럼 덧붙이는 문장, 설명, 조언, 인사이트는 쓰지 말고 메모에 없는 내용은 지어내지 마세요.\n\n메모:\n${txt}`;
+    const r=await ai(ask,500);
+    INS[key]=r;if(my===insSeq)body.textContent=r;
+  }catch(e){if(my===insSeq)body.textContent='지금은 못 읽겠어요. ↻를 눌러 다시 시도해 보세요.'}
+}
+$('insr').onclick=()=>insight(true);
+function render(){
+  const q=$('q').value.trim();
+  $('chips').innerHTML="";
+  const mk=(label,on,fn)=>{const b=document.createElement('span');b.className='chip'+(on?' on':'');b.textContent=label;b.onclick=fn;$('chips').appendChild(b)};
+  mk(`전체 ${notes.length}`,cur==="전체",()=>{cur="전체";cs="전체";render()});
+  [...new Set(notes.map(n=>main(n.cat)))].forEach(m=>mk(`${m} ${notes.filter(n=>main(n.cat)===m).length}`,cur===m,()=>{cur=m;cs="전체";render()}));
+  if(cur!=="전체"){
+    const inMain=notes.filter(n=>main(n.cat)===cur);
+    const subs=[...new Set(inMain.map(n=>sub(n.cat)).filter(Boolean))];
+    if(subs.length){
+      const br=document.createElement('div');br.style.cssText='flex-basis:100%;height:0';$('chips').appendChild(br);
+      mk(`└ ${cur} 전체`,cs==="전체",()=>{cs="전체";render()});
+      subs.forEach(x=>mk(`${x} ${inMain.filter(n=>sub(n.cat)===x).length}`,cs===x,()=>{cs=x;render()}));
+    }
+  }
+  insight();
+  const L=$('list');L.innerHTML="";
+  const f=notes.filter(n=>(cur==="전체"||(main(n.cat)===cur&&(cs==="전체"||sub(n.cat)===cs)))&&(!q||(n.text+n.summary+(n.tags||[]).join(' ')).includes(q)));
+  if(!f.length){L.innerHTML='<div class="hint">'+(ready?"텅 비었음. 첫 생각을 던져봐.":"")+'</div>';return}
+  f.forEach(n=>{
+    const d=document.createElement('div');d.className='note';
+    const top=document.createElement('div');top.className='top';
+    const c=document.createElement('span');c.className='cat';c.textContent=n.cat;
+    const r=document.createElement('span');
+    r.textContent=new Date(n.ts).toLocaleDateString('ko-KR',{month:'short',day:'numeric'})+" ";
+    const re=document.createElement('button');re.className='g';re.textContent="↻";re.title="다시 분류";re.onclick=()=>classify(n);
+    const x=document.createElement('button');x.className='g';x.textContent="✕";x.onclick=()=>del(n.id);
+    r.append(re,x);top.append(c,r);d.appendChild(top);
+    if(n.summary){const s=document.createElement('div');s.className='sum';s.textContent=n.summary;d.appendChild(s)}
+    const t=document.createElement('div');t.className='txt';t.textContent=n.text;d.appendChild(t);
+    if(n.tags&&n.tags.length){const g=document.createElement('div');g.className='tags';g.textContent='#'+n.tags[0];d.appendChild(g)}
+    L.appendChild(d);
+  });
+}
+$('q').oninput=render;
+$('t').addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))$('add').click()});
+load();st('🔒 이 브라우저에만 저장돼요');render();
+</script></body></html>
